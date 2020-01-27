@@ -980,7 +980,7 @@ void Isochrone::UpdateIsoTile(const EdgeLabel& pred,
     } else {
       // Find intersecting tiles (using a Bresenham method)
       auto tiles = isotile_->Intersect(std::list<PointLL>{ll0, ll});
-      for (auto t : tiles) {
+      for (const auto& t : tiles) {
         isotile_->SetIfLessThan(t.first, secs1 * kMinPerSec);
       }
     }
@@ -1021,7 +1021,7 @@ void Isochrone::UpdateIsoTile(const EdgeLabel& pred,
     } else {
       // Find intersecting tiles (using a Bresenham method)
       auto tiles = isotile_->Intersect(std::list<PointLL>{*itr1, *itr2});
-      for (auto t : tiles) {
+      for (const auto& t : tiles) {
         isotile_->SetIfLessThan(t.first, minutes);
       }
     }
