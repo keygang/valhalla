@@ -229,6 +229,7 @@ MatchResult FindMatchResult(const MapMatcher& mapmatcher,
   // If we get a valid edge and find it in the state that's good
   for (const auto& edge : state.candidate().edges) {
     if (edge.id == edgeid) {
+      std::cout << "matched on " << edge.id << std::endl;
       return {edge.projected,     std::sqrt(edge.distance), edgeid,
               edge.percent_along, measurement.epoch_time(), stateid};
     }
@@ -236,6 +237,7 @@ MatchResult FindMatchResult(const MapMatcher& mapmatcher,
 
   // If we failed to get a valid edge or can't find it
   // At least we know which point it matches
+  std::cout << "forced matched on " << edgeid << std::endl;
   const auto& edge = state.candidate().edges.front();
   return {edge.projected,     std::sqrt(edge.distance), edgeid,
           edge.percent_along, measurement.epoch_time(), stateid};
@@ -243,8 +245,16 @@ MatchResult FindMatchResult(const MapMatcher& mapmatcher,
 
 // Find the corresponding match results of a list of states
 std::vector<MatchResult> FindMatchResults(const MapMatcher& mapmatcher,
-                                          const std::vector<StateId>& stateids) {
+                                          const std::vector<StateId>& stateids,
+                                          const baldr::GraphReader& reader) {
   std::vector<MatchResult> results;
+
+  for (StateId::Time time = 0; time < stateids.size(); time++) {
+    std::cout << "state " << time << std::endl;
+    for (const auto& edge : mapmatcher.state_container().state(stateids[time]).candidate().edges) {
+      std::cout << edge.id << std::endl;
+    }
+  }
 
   for (StateId::Time time = 0; time < stateids.size(); time++) {
     results.push_back(FindMatchResult(mapmatcher, stateids, time));
@@ -584,7 +594,7 @@ std::vector<MatchResults> MapMatcher::OfflineMatch(const std::vector<Measurement
     }
 
     // Get the match result for each of the states
-    auto results = FindMatchResults(*this, original_state_ids);
+    auto results = FindMatchResults(*this, original_state_ids, graphreader_);
 
     // Insert the interpolated results into the result list
     std::vector<MatchResult> best_path;
