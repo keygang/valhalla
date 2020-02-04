@@ -201,6 +201,7 @@ MatchResult FindMatchResult(const MapMatcher& mapmatcher,
     return CreateMatchResult(measurement);
   }
 
+  std::cout << "Time " << time << std::endl;
   // Find the last edge of the path from the previous state to the current state
   const auto& state = mapmatcher.state_container().state(stateid);
   baldr::GraphId prev_edge;
@@ -209,6 +210,7 @@ MatchResult FindMatchResult(const MapMatcher& mapmatcher,
     // It must stay on the last edge of the route
     const auto rbegin = prev_state.RouteBegin(state), rend = prev_state.RouteEnd();
     if (rbegin != rend && rbegin->edgeid().Is_Valid()) {
+      std::cout << "has prev" << std::endl;
       prev_edge = rbegin->edgeid();
     }
   }
@@ -219,21 +221,31 @@ MatchResult FindMatchResult(const MapMatcher& mapmatcher,
     const auto& next_state = mapmatcher.state_container().state(next_stateid);
     for (auto label = state.RouteBegin(next_state); label != state.RouteEnd(); label++) {
       if (label->edgeid().Is_Valid()) {
+        //   std::cout << "has next" << std::endl;
         next_edge = label->edgeid();
       }
     }
   }
 
   // bail early when no path exists on either side of this state
-  if (!prev_edge.Is_Valid() && !next_edge.Is_Valid())
+  if (!prev_edge.Is_Valid() && !next_edge.Is_Valid()) {
+    std::cout << "matched nowhere 0" << std::endl;
     return {};
+  }
+
+  std::cout << "prev: " << graph_reader.encoded_edge_shape(prev_edge) << " , next "
+            << graph_reader.encoded_edge_shape(next_edge) << std::endl;
 
   // find which candidate was used for this state
   const baldr::GraphTile* tile = nullptr;
   for (const auto& edge : state.candidate().edges) {
     // if it matches either end of the path coming into this state or the beginning of the
     // path leaving this state, then we are good to go and have found the match
+    std::cout << "current edge: " << graph_reader.encoded_edge_shape(edge.id) << " "
+              << edge.percent_along << std::endl;
     if (edge.id == prev_edge || edge.id == next_edge) {
+      std::cout << "matched on current edge " << graph_reader.encoded_edge_shape(edge.id)
+                << std::endl;
       return {edge.projected,     std::sqrt(edge.distance), edge.id,
               edge.percent_along, measurement.epoch_time(), stateid};
     }
@@ -249,22 +261,67 @@ MatchResult FindMatchResult(const MapMatcher& mapmatcher,
         edge.percent_along == 0.f ? candidate_nodes.first : candidate_nodes.second;
 
     // if the last edge of the previous route ends at this candidate node
-    const auto* prev_de = graph_reader.directededge(prev_edge, tile);
+    const baldr::GraphTile* matching_tile = nullptr;
+    const auto* prev_de = graph_reader.directededge(prev_edge, matching_tile);
+    if (prev_de && prev_de->endnode().tileid() == candidate_node.tileid() &&
+        prev_de->endnode() == candidate_node) {
+      return {edge.projected, std::sqrt(edge.distance), prev_edge, 1.f, measurement.epoch_time(),
+              stateid};
+    } else if (prev_de && prev_de->endnode().tileid() != candidate_node.tileid()) {
+      const baldr::NodeInfo* node_info = tile->node(candidate_node);
+      const baldr::NodeTransition* trans = tile->transition(node_info->transition_index());
+      uint32_t trans_count = node_info->transition_count();
+      if (trans_count > 0) {
+        const baldr::NodeTransition* trans = tile->transition(candidate_node);
+        for (uint32_t i = 0; i < trans_count; ++i, ++trans) {
+          if (prev_de->endnode() != trans->endnode()) {
+            continue;
+          }
+          std::cout << " found transition node " << std::endl;
+          return {edge.projected, std::sqrt(edge.distance), prev_edge, 1.f, measurement.epoch_time(),
+                  stateid};
+        }
+      }
+    }
+
     if (prev_de && prev_de->endnode() == candidate_node) {
+      std::cout << "matched on prev " << graph_reader.encoded_edge_shape(prev_edge) << std::endl;
       return {edge.projected, std::sqrt(edge.distance), prev_edge, 1.f, measurement.epoch_time(),
               stateid};
     }
 
     // if the first edge of the next route starts at this candidate node
-    const auto* next_opp_de = graph_reader.GetOpposingEdge(next_edge, tile);
-    if (next_opp_de && next_opp_de->endnode() == candidate_node) {
+    const auto* next_opp_de = graph_reader.GetOpposingEdge(next_edge, matching_tile);
+    std::cout << candidate_node.value << " " << next_opp_de->endnode().value << std::endl;
+    std::cout << graph_reader.encoded_edge_shape(graph_reader.GetOpposingEdgeId(next_edge, tile))
+              << std::endl;
+    if (next_opp_de && next_opp_de->endnode().tileid() == candidate_node.tileid() &&
+        next_opp_de->endnode() == candidate_node) {
+      std::cout << "matched on next " << graph_reader.encoded_edge_shape(next_edge) << std::endl;
       return {edge.projected, std::sqrt(edge.distance), next_edge, 0.f, measurement.epoch_time(),
               stateid};
+    } else if (next_opp_de && next_opp_de->endnode().tileid() != candidate_node.tileid()) {
+      const baldr::NodeInfo* node_info = tile->node(candidate_node);
+      const baldr::NodeTransition* trans = tile->transition(node_info->transition_index());
+      uint32_t trans_count = node_info->transition_count();
+      if (trans_count > 0) {
+        const baldr::NodeTransition* trans = tile->transition(candidate_node);
+        for (uint32_t i = 0; i < trans_count; ++i, ++trans) {
+          std::cout << trans->endnode().value << std::endl;
+          if (next_opp_de->endnode() != trans->endnode()) {
+            continue;
+          }
+          std::cout << " found transition node " << std::endl;
+          return {edge.projected, std::sqrt(edge.distance), next_edge, 0.f, measurement.epoch_time(),
+                  stateid};
+        }
+      }
     }
   }
 
   // we should never reach here, the above early exit checks whether there is no path on either side
   // of the given state we are finding a match for. perhaps we should throw?
+  std::cout << "matched nowhere 1" << std::endl;
   return {};
 }
 
@@ -273,6 +330,16 @@ std::vector<MatchResult> FindMatchResults(const MapMatcher& mapmatcher,
                                           const std::vector<StateId>& stateids,
                                           baldr::GraphReader& graph_reader) {
   std::vector<MatchResult> results;
+  //  for (StateId::Time time = 0; time < stateids.size(); time++) {
+  //    std::cout << "state " << time << std::endl;
+  //    if (!stateids[time].IsValid())
+  //      continue;
+  //    const auto& state = mapmatcher.state_container().state(stateids[time]);
+  //    for (const auto& edge : state.candidate().edges) {
+  //      std::cout << edge.id << " " << graph_reader.encoded_edge_shape(edge.id) << std::endl;
+  //    }
+  //  }
+
   for (StateId::Time time = 0; time < stateids.size(); time++) {
     results.push_back(FindMatchResult(mapmatcher, stateids, time, graph_reader));
   }

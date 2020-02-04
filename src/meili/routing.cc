@@ -396,6 +396,7 @@ find_shortest_path(baldr::GraphReader& reader,
 
     // Expand from end node in forward direction.
     baldr::GraphId edgeid = {node.tileid(), node.level(), nodeinfo->edge_index()};
+    std::cout << "expanding " << reader.encoded_edge_shape(edgeid) << std::endl;
     const baldr::DirectedEdge* directededge = tile->directededge(edgeid);
     for (uint32_t i = 0; i < nodeinfo->edge_count(); ++i, ++directededge, ++edgeid) {
       // Skip it if its a shortcut or transit connection
@@ -432,6 +433,8 @@ find_shortest_path(baldr::GraphReader& reader,
               // We only add the labels if we are under the limits for distance and for time or time
               // limit is 0
               if (cost.cost < max_dist && (max_time < 0 || cost.secs < max_time)) {
+                std::cout << "destination matched putting " << reader.encoded_edge_shape(edgeid)
+                          << std::endl;
                 labelset->put(dest, edgeid, 0.f, edge.percent_along, cost, turn_cost, cost.cost,
                               label_idx, directededge, travelmode);
               }
@@ -452,6 +455,7 @@ find_shortest_path(baldr::GraphReader& reader,
         // is 0
         if (cost.cost < max_dist && (max_time < 0 || cost.secs < max_time)) {
           float sortcost = cost.cost + heuristic(endtile->get_node_ll(directededge->endnode()));
+          std::cout << "putting with no match? " << reader.encoded_edge_shape(edgeid) << std::endl;
           labelset->put(directededge->endnode(), edgeid, 0.0f, 1.0f, cost, turn_cost, sortcost,
                         label_idx, directededge, travelmode);
         }
@@ -462,6 +466,7 @@ find_shortest_path(baldr::GraphReader& reader,
     if (!from_transition && nodeinfo->transition_count() > 0) {
       const baldr::NodeTransition* trans = tile->transition(nodeinfo->transition_index());
       for (uint32_t i = 0; i < nodeinfo->transition_count(); ++i, ++trans) {
+        std::cout << "expand transition node " << std::endl;
         expand(trans->endnode(), label_idx, true);
       }
     }

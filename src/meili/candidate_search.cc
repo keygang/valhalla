@@ -34,12 +34,14 @@ CandidateQuery::WithinSquaredDistance(const midgard::PointLL& location,
   std::unordered_set<baldr::GraphId> visited_nodes;
   midgard::projector_t projector(location);
   const baldr::GraphTile* tile = nullptr;
-
+  // std::cout << "divide -------" << std::endl;
   for (auto it = edgeid_begin; it != edgeid_end; it++) {
     const auto& edgeid = *it;
     if (!edgeid.Is_Valid()) {
       continue;
     }
+
+    // std::cout << reader_.encoded_edge_shape(*it) << std::endl;
 
     // Get the edge and its opposing edge. Transition edges are not
     // allowed so we do not need to check node levels.
