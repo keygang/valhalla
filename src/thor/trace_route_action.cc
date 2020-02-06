@@ -484,9 +484,27 @@ thor_worker_t::map_match(Api& request) {
         std::get<3>(edge_group) = std::prev(match_result_itr);
       }
 
+      std::cout << "matched edges are: " << std::endl;
+      for (const auto& edge : path_edges) {
+        std::cout << reader->encoded_edge_shape(edge.edgeid) << std::endl;
+      }
+
+      std::cout << " I am expecting " << edge_groups.size() << "groups" << std::endl;
+      std::cout << "first edge "
+                << std::distance(path_edges.cbegin(), std::get<0>(edge_groups.front())) << std::endl;
+      std::cout << "last edge "
+                << std::distance(path_edges.cbegin(), std::get<1>(edge_groups.front())) << std::endl;
+      std::cout << "first match "
+                << std::distance(match_results.cbegin(), std::get<2>(edge_groups.front()))
+                << std::endl;
+      std::cout << "last match "
+                << std::distance(match_results.cbegin(), std::get<3>(edge_groups.front()))
+                << std::endl;
+
       // The following logic put break points (matches results) on edge candidates to form legs
-      // logic assumes the both match results and edge candidates are topologically sorted in correct
-      // order. Only the first location will be populated with corresponding input date_time
+      // logic assumes the both match results and edge candidates are topologically sorted in
+      // correct order. Only the first location will be populated with corresponding input
+      // date_time
       std::string date_time = options.shape(0).has_date_time() ? options.shape(0).date_time() : "";
       auto origin_match_result = match_results.cbegin();
       for (const auto& edge_group : edge_groups) {
