@@ -418,6 +418,7 @@ find_shortest_path(baldr::GraphReader& reader,
 
       // If destinations found along the edge, add segments to each
       // destination to the queue
+      // std::cout << reader.encoded_edge_shape(edgeid) << std::endl;
       const auto it = edge_dests.find(edgeid);
       if (it != edge_dests.end()) {
         for (const auto dest : it->second) {
@@ -439,6 +440,8 @@ find_shortest_path(baldr::GraphReader& reader,
           }
         }
       }
+
+      // TODO, also search edges that starts at the end node at edgeid
 
       // Get the end node tile and nodeinfo (to compute heuristic)
       const baldr::GraphTile* endtile =
@@ -525,6 +528,7 @@ find_shortest_path(baldr::GraphReader& reader,
 
       // Expand origin: add segments from origin to destinations ahead
       // at the same edge as well as at the opposite edge to the queue
+      std::deque<baldr::PathLocation::PathEdge> candidate_edges;
       if (destination_idx == origin_idx) {
         for (const auto& origin_edge : destinations[origin_idx].edges) {
           // The tile will be guaranteed to be directededge's tile in this loop
@@ -542,6 +546,15 @@ find_shortest_path(baldr::GraphReader& reader,
           if (label.edgeid().Is_Valid() && label.edgeid() != origin_edge.id &&
               label.opp_local_idx() == directed_edge->localedgeidx()) {
             turn_cost += turn_cost_table[0];
+          }
+
+          baldr::GraphId candidate_node;
+          bool origin_at_intersection =
+              origin_edge.percent_along == 0.f || origin_edge.percent_along == 1.f;
+          if (origin_at_intersection) {
+            auto candidate_nodes = reader.GetDirectedEdgeNodes(origin_edge.id, start_tile);
+            candidate_node =
+                origin_edge.percent_along == 0.f ? candidate_nodes.first : candidate_nodes.second;
           }
 
           // All destinations on this origin edge
@@ -564,6 +577,23 @@ find_shortest_path(baldr::GraphReader& reader,
                   labelset->put(other_dest, origin_edge.id, origin_edge.percent_along,
                                 destination_edge.percent_along, cost, turn_cost, cost.cost, label_idx,
                                 directed_edge, travelmode);
+                }
+              } else if (origin_at_intersection &&
+                         candidate_node == reader.edge_startnode(destination_edge.id)) {
+                std::cout << " I am here " << std::endl;
+                const baldr::GraphTile* candidate_tile = nullptr;
+                auto* candidate_edge = reader.directededge(destination_edge.id, candidate_tile);
+                float segment_percentage = destination_edge.percent_along;
+                sif::Cost cost(label.cost().cost + candidate_edge->length() * segment_percentage,
+                               label.cost().secs +
+                                   costing->EdgeCost(candidate_edge, candidate_tile).secs *
+                                       segment_percentage);
+
+                // We only add the labels if we are under the limits for distance and for time or
+                // time limit is 0
+                if (cost.cost < max_dist && (max_time < 0 || cost.secs < max_time)) {
+                  labelset->put(other_dest, destination_edge.id, 0.f, destination_edge.percent_along,
+                                cost, turn_cost, cost.cost, label_idx, candidate_edge, travelmode);
                 }
               }
             }
