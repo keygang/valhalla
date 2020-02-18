@@ -419,7 +419,7 @@ find_shortest_path(baldr::GraphReader& reader,
       // If destinations found along the edge, add segments to each
       // destination to the queue
       // std::cout << reader.encoded_edge_shape(edgeid) << std::endl;
-      const auto it = edge_dests.find(edgeid);
+      auto it = edge_dests.find(edgeid);
       if (it != edge_dests.end()) {
         for (const auto dest : it->second) {
           for (const auto& edge : destinations[dest].edges) {
@@ -430,8 +430,8 @@ find_shortest_path(baldr::GraphReader& reader,
               sif::Cost cost(label.cost().cost + directededge->length() * edge.percent_along,
                              label.cost().secs +
                                  costing->EdgeCost(directededge, tile).secs * edge.percent_along);
-              // We only add the labels if we are under the limits for distance and for time or time
-              // limit is 0
+              // We only add the labels if we are under the limits for distance and for time or
+              // time limit is 0
               if (cost.cost < max_dist && (max_time < 0 || cost.secs < max_time)) {
                 labelset->put(dest, edgeid, 0.f, edge.percent_along, cost, turn_cost, cost.cost,
                               label_idx, directededge, travelmode);
@@ -442,10 +442,11 @@ find_shortest_path(baldr::GraphReader& reader,
       }
 
       // TODO, also search edges that starts at the end node at edgeid
-
       // Get the end node tile and nodeinfo (to compute heuristic)
       const baldr::GraphTile* endtile =
           directededge->leaves_tile() ? reader.GetGraphTile(directededge->endnode()) : tile;
+      const baldr::GraphId& end_node = reader.edge_endnode(edgeid, endtile);
+      const baldr::NodeInfo* end_nodeinfo = endtile->node(end_node);
       if (endtile != nullptr) {
         // Get cost - use EdgeCost to get time along the edge. Override
         // cost portion to be distance. Add heuristic to get sort cost.
@@ -458,6 +459,50 @@ find_shortest_path(baldr::GraphReader& reader,
           labelset->put(directededge->endnode(), edgeid, 0.0f, 1.0f, cost, turn_cost, sortcost,
                         label_idx, directededge, travelmode);
         }
+
+        //        baldr::GraphId next_edgeid = {end_node.tileid(), end_node.level(),
+        //                                      end_nodeinfo->edge_index()};
+        //        const baldr::DirectedEdge* next_directededge = endtile->directededge(next_edgeid);
+        //        for (uint32_t j = 0; j < end_nodeinfo->edge_count();
+        //             ++j, ++next_directededge, ++next_edgeid) {
+        //          // Skip it if its a shortcut or transit connection
+        //          if (next_directededge->is_shortcut() ||
+        //              next_directededge->use() == baldr::Use::kTransitConnection) {
+        //            continue;
+        //          }
+        //
+        //          // Skip it if its not allowed
+        //          if (!IsEdgeAllowed(next_directededge, next_edgeid, costing, label, endtile)) {
+        //            continue;
+        //          }
+        //
+        //          it = edge_dests.find(next_edgeid);
+        //          if (it == edge_dests.cend()) {
+        //            continue;
+        //          }
+        //
+        //          for (const auto dest : it->second) {
+        //            for (const auto& edge : destinations[dest].edges) {
+        //              if (edge.id == next_edgeid) {
+        //                // Get cost - use EdgeCost to get time along the edge. Override
+        //                // cost portion to be distance. Heuristic cost from a destination
+        //                // to itself must be 0, so sortcost = cost
+        //                sif::Cost cost(label.cost().cost + next_directededge->length() *
+        //                edge.percent_along,
+        //                               label.cost().secs + costing->EdgeCost(next_directededge,
+        //                               tile).secs *
+        //                                                       edge.percent_along);
+        //                // We only add the labels if we are under the limits for distance and for
+        //                time or
+        //                // time limit is 0
+        //                if (cost.cost < max_dist && (max_time < 0 || cost.secs < max_time)) {
+        //                  labelset->put(dest, next_edgeid, 0.f, edge.percent_along, cost, turn_cost,
+        //                                cost.cost, label_idx, next_directededge, travelmode);
+        //                }
+        //              }
+        //            }
+        //          }
+        //        }
       }
     }
 
@@ -475,6 +520,16 @@ find_shortest_path(baldr::GraphReader& reader,
 
   // Load origin to the queue of the labelset
   set_origin(reader, destinations, origin_idx, labelset, travelmode, costing, edgelabel);
+
+  //  std::cout << "destinations" << std::endl;
+  //  for (const auto& dest : destinations) {
+  //    for (const auto& edge : dest.edges) {
+  //      std::cout << reader.encoded_edge_shape(edge.id) << std::endl;
+  //    }
+  //  }
+
+  std::cout << "node_dest size: " << node_dests.size() << std::endl;
+  std::cout << "edge_dest size: " << edge_dests.size() << std::endl;
 
   std::unordered_map<uint16_t, uint32_t> results;
   while (true) {
@@ -495,6 +550,8 @@ find_shortest_path(baldr::GraphReader& reader,
       if (it != node_dests.end()) {
         for (const auto dest : it->second) {
           results[dest] = label_idx;
+          std::cout << dest << " " << reader.encoded_edge_shape(labelset->label(label_idx).edgeid())
+                    << ", i am here 1" << std::endl;
         }
         node_dests.erase(it);
       }
@@ -520,7 +577,6 @@ find_shortest_path(baldr::GraphReader& reader,
           }
         }
       }
-
       // Congrats!
       if (edge_dests.empty() && node_dests.empty()) {
         break;
@@ -578,24 +634,27 @@ find_shortest_path(baldr::GraphReader& reader,
                                 destination_edge.percent_along, cost, turn_cost, cost.cost, label_idx,
                                 directed_edge, travelmode);
                 }
-              } else if (origin_at_intersection &&
-                         candidate_node == reader.edge_startnode(destination_edge.id)) {
-                std::cout << " I am here " << std::endl;
-                const baldr::GraphTile* candidate_tile = nullptr;
-                auto* candidate_edge = reader.directededge(destination_edge.id, candidate_tile);
-                float segment_percentage = destination_edge.percent_along;
-                sif::Cost cost(label.cost().cost + candidate_edge->length() * segment_percentage,
-                               label.cost().secs +
-                                   costing->EdgeCost(candidate_edge, candidate_tile).secs *
-                                       segment_percentage);
-
-                // We only add the labels if we are under the limits for distance and for time or
-                // time limit is 0
-                if (cost.cost < max_dist && (max_time < 0 || cost.secs < max_time)) {
-                  labelset->put(other_dest, destination_edge.id, 0.f, destination_edge.percent_along,
-                                cost, turn_cost, cost.cost, label_idx, candidate_edge, travelmode);
-                }
               }
+              // test
+              //              else if (origin_at_intersection &&
+              //                       candidate_node == reader.edge_startnode(destination_edge.id)) {
+              //                const baldr::GraphTile* candidate_tile = nullptr;
+              //                auto* candidate_edge = reader.directededge(destination_edge.id,
+              //                candidate_tile); float segment_percentage =
+              //                destination_edge.percent_along; sif::Cost cost(label.cost().cost +
+              //                candidate_edge->length() * segment_percentage,
+              //                               label.cost().secs +
+              //                                   costing->EdgeCost(candidate_edge,
+              //                                   candidate_tile).secs *
+              //                                       segment_percentage);
+              //
+              //                if (cost.cost < max_dist && (max_time < 0 || cost.secs < max_time)) {
+              //                  labelset->put(other_dest, destination_edge.id, 0.f,
+              //                  destination_edge.percent_along,
+              //                                cost, turn_cost, cost.cost, label_idx, candidate_edge,
+              //                                travelmode);
+              //                }
+              //  }
             }
           }
 
@@ -621,11 +680,19 @@ find_shortest_path(baldr::GraphReader& reader,
       }
     }
   }
+
+  std::cout << "what's in results: " << std::endl;
+  for (const auto [dest, label] : results) {
+    std::cout << dest << " " << reader.encoded_edge_shape(labelset->label(label).edgeid())
+              << std::endl;
+  }
+
   // TODO - do we need to clear since it is constructed prior to each call??
   labelset->clear_queue();
   labelset->clear_status();
+
   return results;
-}
+} // namespace meili
 
 } // namespace meili
 

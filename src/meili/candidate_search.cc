@@ -122,6 +122,11 @@ CandidateQuery::WithinSquaredDistance(const midgard::PointLL& location,
     }
   }
 
+  std::cout << "after Query:" << std::endl;
+  for (const auto& correlated : candidates) {
+    for (const auto& edge : correlated.edges)
+      std::cout << reader_.encoded_edge_shape(edge.id) << std::endl;
+  }
   return candidates;
 }
 
@@ -231,6 +236,10 @@ std::vector<baldr::PathLocation> CandidateGridQuery::Query(const midgard::PointL
 
   const auto range = midgard::ExpandMeters(location, std::sqrt(sq_search_radius));
   const auto edgeids = RangeQuery(range);
+  std::cout << "Query:" << std::endl;
+  for (const auto& edge : edgeids) {
+    std::cout << "before wsq filtered edges: " << reader_.encoded_edge_shape(edge) << std::endl;
+  }
   return WithinSquaredDistance(location, sq_search_radius, edgeids.begin(), edgeids.end(), filter);
 }
 

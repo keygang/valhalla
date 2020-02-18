@@ -495,7 +495,7 @@ thor_worker_t::map_match(Api& request) {
         std::get<3>(edge_group) = prev_match_result;
       }
 
-      idx = 0;
+      int idx = 0;
       std::cout << "there are " << path_edges.size() << " edges" << std::endl;
       for (const auto& edge : path_edges) {
         std::cout << idx++ << " " << reader->encoded_edge_shape(edge.edgeid) << std::endl;
@@ -674,6 +674,10 @@ thor_worker_t::map_match(Api& request) {
             trim_end = (leg_end->elapsed_time - trim_end) *
                        (end_pct - destination_match_result->distance_along) * end_edge_scale;
 
+            std::cout << "build leg on " << std::distance(match_results.begin(), origin_match_result)
+                      << " " << std::distance(match_results.begin(), destination_match_result) << " "
+                      << reader->encoded_edge_shape(origin_match_result->edgeid) << " "
+                      << reader->encoded_edge_shape(destination_match_result->edgeid) << std::endl;
             // add a new leg to the current route
             TripLegBuilder::Build(controller, matcher->graphreader(), mode_costing, leg_begin,
                                   leg_end + 1, *origin_location, *destination_location,
