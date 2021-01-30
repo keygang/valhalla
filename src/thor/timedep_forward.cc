@@ -31,10 +31,13 @@ TimeDepForward::~TimeDepForward() {
 
 // Clear the temporary information generated during path construction.
 void TimeDepForward::Clear() {
+  auto reservation = clear_reserved_memory_ ? 0 : max_reserved_labels_count_;
+  if (edgelabels_.size() > reservation) {
+    edgelabels_.resize(reservation);
+    edgelabels_.shrink_to_fit();
+  }
   // Clear the edge labels and destination list. Reset the adjacency list
   // and clear edge status.
-  edgelabels_.resize(clear_reserved_memory_ ? 0 : max_reserved_labels_count_);
-  edgelabels_.shrink_to_fit();
   edgelabels_.clear();
 
   destinations_percent_along_.clear();

@@ -32,8 +32,12 @@ TimeDepReverse::~TimeDepReverse() {
 void TimeDepReverse::Clear() {
   TimeDepForward::Clear();
 
-  edgelabels_rev_.resize(clear_reserved_memory_ ? 0 : max_reserved_labels_count_);
-  edgelabels_rev_.shrink_to_fit();
+  auto reservation = clear_reserved_memory_ ? 0 : max_reserved_labels_count_;
+  if (edgelabels_rev_.size() > reservation) {
+    edgelabels_rev_.resize(reservation);
+    edgelabels_rev_.shrink_to_fit();
+  }
+
   edgelabels_rev_.clear();
 
   adjacencylist_rev_.clear();
